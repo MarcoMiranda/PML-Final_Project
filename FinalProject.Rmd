@@ -1,0 +1,122 @@
+---
+title: "Final Proyect - Practical Machine Learning"
+author: "Marco Miranda"
+date: "Thursday, June 09, 2016"
+output: html_document
+---
+
+**Introduction**
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. 
+
+A group of people were asked to perform barbell lifts correctly and incorrectly in 5 different ways. This study uses the information caputered in this experimental exercise. 
+
+Using this dataset the aim of the study is to create a prediction model based on the possible important features of the study. 
+
+The data used is refrenced below.
+
+Data
+
+The training data for this project are available here:
+
+<https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv>
+
+The test data are available here:
+
+<https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv>
+
+
+The data for this project come from this source: <http://groupware.les.inf.puc-rio.br/har>. 
+
+Outline of the study is conformed of 4 sections:
+
+Data preprocessing
+Model building
+Results evaluation
+Testing
+
+Each section will discribe its subcomponents and the code used.
+
+For reproducibility we show the libraries and seed used for the study. 
+
+```{r}
+library(caret)
+library(rpart)
+library(RColorBrewer)
+library(rattle)
+library(randomForest)
+
+set.seed(123)
+```
+
+**Data preprocessing**
+
+We take the data from the source URLs in order to have them in accesable memory. In this same step we clean the data from NA situations.
+
+```{r}
+trainSet <- read.csv("pml-training.csv", na.strings = c("NA", "#DIV/0", ""))
+testSet <- read.csv("pml-testing.csv", na.strings = c("NA", "#DIV/0", ""))
+
+```
+
+We then select the features that are of intres from the list of possible features. The first 7 columns are related to time stamping which is not relevent to the study and are thus taken out. Also columns that are only NAs are taken out. 
+
+In addition, the a new training set is made out ot the resulting features and the outcome of intrest ("classe"). As well as a new testing set with the the column "problem_id" as a marker.
+
+```{r}
+features <- names(testSet[, colSums(is.na(testSet)) == 0])[8:59]
+myTrainSet <- trainSet[, c(features, "classe")]
+myTestSet <- testSet[, c(features, "problem_id")]
+```
+
+Once we have the done the preprocessing we can use these datasets for creating the prediction model. 
+
+We first need to create the partition on the dataset to have two subsets: training and testing. We use 80% of the initial training set, for trianing perpuses. We take 20% to test it. And varify the data is correct.
+
+```{r}
+inTrain <- createDataPartition(y = trainSet$classe, p = 0.80, list = FALSE)
+training <- myTrainSet[inTrain, ]
+testing <- myTrainSet[-inTrain, ]
+dim(training)
+dim(testing)
+```
+
+We take create numbering identifiers for he columns of intrest, stating with the outcome, followed with columns identified as having high corrilation through the findCorrelation function, discriminating if corrilation is over 90%. Using the results a new training set and testing set is created. We print the highly correlated features. 
+
+```{r}
+outcome <- which(names(training) == "classe")
+highCorrCols <- findCorrelation(abs(cor(training[, -outcome])), 0.9)
+highCorrFeatures <- names(training)[highCorrCols]
+myTraining <- training[ ,-highCorrCols]
+myOutcome <- which(names(myTraining) == "classe")
+highCorrFeatures
+```
+
+Using the new trining set with features that are of intrest, ie not correlated and not NAs. 
+
+**Model building**
+
+We can use the Random Forest algorithm to create the model. We use the "out-of-bag" or "oob" estimation method which is a variant of bootstrap affregating. And finaly present the evaluation of the model through the Confusion Matrix and Statistics.
+```{r}
+controlRF <- trainControl(method = "oob")
+modelRF <- train(classe ~ . , myTraining, method = "rf", ntree = 200, trControl = controlRF)
+resultsRF <- data.frame(modelRF$results)
+fitRF <- predict(modelRF, testing)
+
+```
+
+**Results evaluation**
+The result is very accurate at 0.99 and has a Kappa value of 0.99. 
+
+```{r}
+print(confusionMatrix(fitRF, testing$classe), digits = 4)
+```
+
+**Testing**
+With this model we finaly evaluate testing set provided from the original testing set URL through the following code. With a perfect mark.
+
+```{r}
+##print(predict(modelRF, myTestSet))
+```
+
+
